@@ -1,0 +1,28 @@
+# systemd unit: BondScreener MOEX (FastAPI + uvicorn)
+# Install:
+#   sudo cp scripts/deploy/bondscreener.service /etc/systemd/system/bondscreener.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now bondscreener
+#
+# Перед копированием замените пути и пользователя в секциях User/Group/WorkingDirectory
+# или отредактируйте файл в /etc/systemd/system/.
+
+[Unit]
+Description=BondScreener MOEX (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=DEPLOY_USER
+Group=DEPLOY_USER
+WorkingDirectory=DEPLOY_APP_DIR
+Environment="PATH=DEPLOY_APP_DIR/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=-DEPLOY_APP_DIR/.env
+ExecStart=DEPLOY_APP_DIR/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+# Лимиты (по желанию)
+# LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

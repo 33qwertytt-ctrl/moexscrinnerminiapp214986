@@ -1,0 +1,14 @@
+aiocache==0.12.3
+fastapi==0.135.3
+httpx==0.28.1
+jinja2==3.1.6
+mypy==1.19.1
+pydantic==2.12.5
+pydantic-settings==2.13.1
+pytest==8.4.1
+python-multipart==0.0.22
+rich==14.3.3
+ruff==0.15.4
+structlog==25.5.0
+typer==0.24.1
+uvicorn==0.43.0

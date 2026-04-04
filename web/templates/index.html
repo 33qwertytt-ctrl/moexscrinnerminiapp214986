@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bond Screener MOEX</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  </head>
+  <body>
+    <main class="screen">
+      <header class="topbar">
+        <h1>Bond Screener MOEX</h1>
+        <button id="refreshBtn" type="button">Refresh</button>
+      </header>
+
+      <section class="filters">
+        <label>
+          Min emitter rating
+          <select id="minEmitterRating">
+            <option value="">Any</option>
+            <option>AAA</option>
+            <option>AA+</option>
+            <option>AA</option>
+            <option>AA-</option>
+            <option>A+</option>
+            <option>A</option>
+            <option>A-</option>
+            <option>BBB+</option>
+            <option>BBB</option>
+            <option>BBB-</option>
+            <option>NR</option>
+          </select>
+        </label>
+        <label>
+          Min bond rating
+          <select id="minBondRating">
+            <option value="">Any</option>
+            <option>AAA</option>
+            <option>AA+</option>
+            <option>AA</option>
+            <option>AA-</option>
+            <option>A+</option>
+            <option>A</option>
+            <option>A-</option>
+            <option>BBB+</option>
+            <option>BBB</option>
+            <option>BBB-</option>
+            <option>NR</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="table-wrap">
+        <table id="bondsTable">
+          <thead>
+            <tr>
+              <th data-key="ticker">Ticker</th>
+              <th data-key="name">Name</th>
+              <th data-key="rating">Rating</th>
+              <th data-key="price">Price</th>
+              <th data-key="coupon_percent">Coupon %</th>
+              <th data-key="coupons_per_year">Coupons per year</th>
+              <th data-key="annual_yield">Annual yield %</th>
+              <th data-key="yield_to_horizon">Yield to horizon %</th>
+              <th data-key="months_to_maturity">Months to maturity</th>
+            </tr>
+          </thead>
+          <tbody id="bondsTableBody"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+  </html>

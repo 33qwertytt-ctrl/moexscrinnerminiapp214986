@@ -1,0 +1,110 @@
+# Project Architecture (Current State)
+
+## Общая Структура
+- Корень: `main.py`, `.env` (коммитится в git: публичные настройки; секреты Telegram — пустые поля, задаются на сервере или через env), `.env.example`, `requirements.txt`, `pyproject.toml`.
+- `app/`: `main.py` (FastAPI), `bonds_service.py` (shared service for CLI/API).
+- `cli/`: `print_table.py` (rich CLI, uses `get_top_bonds()`).
+- `web/`: устаревший vanilla UI (не раздаётся с `app/main.py`; оставлен в репозитории для справки).
+- `config/`: `settings.py` (pydantic-settings + `BONDS_` env prefix).
+- `domain/`: `entities/bond.py` (`Bond`, `YieldMetrics`).
+- `infrastructure/`: `moex/client.py`, `moex/parsers.py`, `moex/cache.py`.
+- `application/`: `services/yield_calculator.py`, `services/bond_service.py`.
+- `presentation/`: `cli/main.py` (typer commands, rich table).
+- `utils/`: `calendar.py`, `logging.py`.
+- `frontend/`: Telegram Mini App (React + SDK).
+- `data/`: runtime SQLite фидбека и загрузки (каталог в `.gitignore`, создаётся на сервере).
+- `docs/`: requirements/plan/architecture/archrules.
+- `logs/`: runtime logs directory (reserved).
+- `scripts/deploy/`: `vps-setup.sh` (Ubuntu 24.04), шаблон `bondscreener.service` (systemd), `nginx-bondscreener.conf` (прокси на `127.0.0.1:8000`, `server_name moextab.duckdns.org`).
+
+## Модули и Связи
+- `main.py` -> `presentation/cli/main.py` -> `application/services/*` -> `infrastructure/moex/*`.
+- `main.py` -> `cli/print_table.py` -> `app/bonds_service.py` -> `application/services/*` -> `infrastructure/moex/*`.
+- `app/main.py` -> `app/bonds_service.py` -> `application/services/*` -> `infrastructure/moex/*`.
+- Фидбек: `app/feedback_routes.py` (`POST /api/feedback/submit`, `POST /api/feedback/pair`, `POST /api/telegram/webhook/feedback`) → `application/services/feedback_workflow.py` → `infrastructure/persistence/feedback_sqlite.py`, `infrastructure/telegram/bot_api.py`, `infrastructure/telegram/feedback_markups.py`; валидация WebApp: `utils/telegram_webapp.py`; сущность `domain/entities/feedback.py`.
+- `YieldCalculator` использует `Decimal` для доходности, считает:
+  - доходность до горизонта = `(капитализация_в_периоде + купоны_за_период) / текущая_цена * 100`;
+  - `капитализация_в_периоде` учитывается только если горизонт доходит до оферты/погашения;
+  - годовую доходность = доходность до горизонта * `(365 / дни_периода)`.
+- `BondService` применяет фильтр `min_rating`, фильтр по номиналу `1000`, опциональный порог `min_annual_yield`, отбрасывает доходность <= 0%, сортирует top-N по годовой доходности и обогащает рейтингом из двух источников.
+- Дополнительно исключаются бумаги с технически нулевым купоном `coupon_percent <= 0.01`; перед возвратом выдача всегда пересортировывается по `annual_yield_percent` по убыванию.
+- `MoexClient` получает данные ISS асинхронно (`httpx`) с retry:
+  - список облигаций: `engines/stock/markets/bonds/securities`;
+  - `EMITTER_ID` из `securities/{SECID}` (`description`);
+  - рейтинг выпуска: `cci/rating/companies/ecbd_{EMITTER_ID}/securities/isin_{SECID}` (`iss.json=extended`);
+  - рейтинг эмитента: `cci/rating/companies/ecbd_{EMITTER_ID}` (`iss.json=extended`).
+- Обогащение рейтингов выполняется батчами (по 10), с ограничением конкурентности (8), чтобы уменьшить риск `denied` и ускорить вывод top-N.
+- CLI рендерит 9-колоночную `rich` таблицу без дюрации: цена, купон, купонов в год, годовая, до горизонта, месяцев до погашения.
+- Колонка рейтингов в таблице подписана как `Рейтинги, выпуск, эмитент`.
+- `app/bonds_service.py` не дублирует расчет доходностей, а переиспользует существующий `BondService.screen(...)` и маппит результат в контракт `Bond`:
+  - `ticker`, `name`, `rating`, `price`, `coupon_percent`, `coupons_per_year`,
+  - `annual_yield`, `yield_to_horizon`, `months_to_maturity`.
+- FastAPI endpoint `GET /api/bonds` поддерживает фильтры:
+  - `min_emitter_rating=BBB`,
+  - `min_bond_rating=BBB`,
+  - плюс `limit`, `horizon_days`, `min_annual_yield`.
+- Для фильтра API используется отдельная шкала `AAA ... BBB- ... NR` с нормализацией `ruAA+`/`AA+(RU)` к единому виду.
+- Продакшен-UI: Telegram Mini App в `frontend/` (Vite + React): данные через `GET /api/bonds`, чипсы горизонт/рейтинг/лимит, кнопка «Обновить», таблица (9 колонок), карточка по строке, дисклеймер; цвет годовой доходности: `> 20%` зелёный, `< 10%` серый.
+- `app/main.py` отдаёт собранный `frontend/dist` на `/` и `/assets/*`, API только на `/api/bonds`; OpenAPI `/docs` отключён, чтобы не пересекаться с SPA.
+- Telegram: `telegram-web-app.js` + `WebApp.ready()` / `WebApp.expand()`, опционально `init()` из `@telegram-apps/sdk` (вне Telegram — try/catch).
+- Для диагностики CCI добавлен флаг `--debug-rating`: выводит marker/content-type/body-length/snippet по issue/issuer endpoint для каждой строки.
+- При серии `denied` (текущий порог в конфиге клиента) CCI-запросы автоматически останавливаются только если ответ пустой/непарсируемый; при валидном JSON данные используются.
+
+## Принципы Организации
+- Clean Architecture.
+- Async IO для внешнего API.
+- `Decimal` для финансовых расчётов.
+- Structlog для логирования.
+- Конфиг только через `.env` + pydantic-settings.
+- Публичные параметры для клиента: `GET /api/public-config` (`public_domain`, `public_ipv4`, `public_ipv6`, лимиты фидбека и длина pairing-кода); домен дублирует значение `BONDS_PUBLIC_DOMAIN` для согласованности с nginx (подстановка `__DOMAIN__` в `vps-setup.sh`).
+
+## Текущий Статус
+- Этап 1: выполнен.
+- Этап 2: выполнен.
+- Этап 3: выполнен.
+- Этап 4: выполнен.
+- Этап 5 (optional): выполнен в виде frontend каркаса.
+- Актуализация 2026-02-28:
+  - удалена дюрация из доменной модели/парсинга/таблиц;
+  - добавлено поле `coupons_per_year`;
+  - фильтрация и сортировка выполняются по годовой доходности;
+  - добавлен опциональный CLI-фильтр `--min-annual-yield`;
+  - дефолтный лимит строк увеличен до `20`;
+  - `years_to_redemption` заменено на `months_to_redemption`;
+  - рейтинг отображается как `rating_issue/rating_issuer` из MOEX CCI;
+  - исключены облигации с `coupons_per_year = 0`;
+  - исключены облигации с `coupon_value = 0`;
+  - добавлен fallback при `X-MicexPassport-Marker=denied` для CCI рейтингов;
+  - для всех ISS запросов добавлены `User-Agent`/`Accept` и увеличен backoff retry;
+  - добавлен runtime-debug причин `NR/NR` через `--debug-rating`.
+- Актуализация 2026-03-01:
+  - отображение рейтинга в CLI сохранено в исходном виде (`issue/issuer`), но дубли `X/X` схлопываются до `X` (кроме `NR/NR`);
+  - `BondService` больше не пропускает `NR` через `min_rating` при порогах выше `NR`;
+  - при `CCI denied` и результате `NR/NR` сохраняется fallback из `securities`: если рейтинг выпуска уже известен, итоговый формат `issue/NR`.
+  - если из-за отсутствия рейтингов после `min_rating` недостаточно записей, `BondService` добирает строки из уже рассчитанного top по доходности (без потери расчётов), чтобы CLI-таблица не была пустой.
+  - в `MoexClient` порог авто-остановки CCI по denied установлен в `1`: при первом `X-MicexPassport-Marker=denied` запросы рейтинга прекращаются до конца запуска.
+  - при пороге `1` обогащение рейтингов в `BondService` выполняется последовательно с ранним break, чтобы не отправлять лишнюю параллельную пачку запросов в уже недоступный CCI.
+  - при `cci_access_denied` fallback теперь применяется и к незавершённым бумагам текущего батча, чтобы формат рейтинга в выдаче оставался консистентным.
+- Актуализация 2026-03-05:
+  - подтверждено, что CCI может возвращать `X-MicexPassport-Marker=denied` вместе с валидным JSON; такие ответы теперь не считаются отказом;
+  - для CCI внедрены endpoint'ы формата `ecbd_{EMITTER_ID}` и `isin_{SECID}` (как в виджетах MOEX), что позволяет получать рейтинг эмитента в публичном контуре;
+  - парсинг рейтингов расширен на `iss.json=extended` (list payload + поля `RATING_LEVEL_NAME_SHORT_*`);
+  - нормализация `min_rating` обновлена: значения формата `AA+(RU)` приводятся к `ruAA+`;
+  - исключены бумаги с `coupon_percent <= 0.01`;
+  - добавлена финальная пересортировка результата по годовой доходности после fallback-логики.
+- Актуализация 2026-03-14:
+  - внедрен слой `app/bonds_service.py` как единая точка переиспользования бизнес-логики для CLI и Web API;
+  - добавлены `app/main.py` и endpoint `GET /api/bonds`;
+  - добавлен web-контур `web/templates` + `web/static` (без React/тяжелых фреймворков);
+  - CLI переключен на новый shared service (`main.py` -> `cli/print_table.py`);
+  - добавлена API-фильтрация `min_emitter_rating` / `min_bond_rating` по шкале `AAA..NR`;
+  - добавлена команда запуска сервера: `uvicorn app.main:app --host 0.0.0.0 --port 8000`.
+- Актуализация 2026-04-04:
+  - добавлены артефакты развёртывания на VPS: `scripts/deploy/vps-setup.sh`, systemd unit и конфиг nginx с доменом по умолчанию `moextab.duckdns.org`; приложение в проде слушает `127.0.0.1:8000`, наружу — только nginx (80/443).
+  - основной веб-интерфейс — Telegram Mini App (`frontend/`); `vps-setup.sh` собирает его (`npm ci`/`npm install` + `npm run build`); в скрипте заданы пример `GIT_REPO_EXAMPLE` и дефолтный email для certbot.
+- Актуализация 2026-04-04 (фидбек):
+  - два Telegram-бота используют один backend: токен **Mini App** — только проверка `initData`; токен **фидбека** — исходящие уведомления и webhook с inline/reply UI для операторов.
+  - Хранение: SQLite + файлы вложений; статусы `active` / `archived` / `deleted`; при удалении сообщения в чатах удаляются через `deleteMessage` по сохранённым `chat_id`/`message_id`.
+  - Pairing: таблица одноразовых кодов (`/pair` у оператора) и `user_operator_links` для связи `telegram_user_id` пользователя Mini App с оператором; в запись фидбека пишется `paired_operator_telegram_id` для фильтра выдачи архива по кнопке «Архив».
+  - Webhook URL (HTTPS того же домена): `/api/telegram/webhook/feedback`; рекомендуется `secret_token` в Bot API и проверка заголовка `X-Telegram-Bot-Api-Secret-Token` (`BONDS_TELEGRAM_FEEDBACK_WEBHOOK_SECRET`).
+  - Для вложений фидбека в nginx стоит поднять `client_max_body_size` хотя бы до значения `BONDS_FEEDBACK_MAX_ATTACHMENT_BYTES` (байты → суффикс `m`/`M`).
