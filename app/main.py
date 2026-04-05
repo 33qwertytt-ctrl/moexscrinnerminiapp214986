@@ -18,6 +18,7 @@ from app.feedback_routes import router as feedback_router
 from app.feedback_routes import telegram_router as telegram_feedback_router
 from app.public_routes import router as public_router
 from app.security import SecurityHeadersMiddleware, enforce_rate_limit
+from application.services.bond_snapshot_service import BondSnapshotService
 from application.services.feedback_workflow import FeedbackWorkflow
 from config.settings import settings
 from infrastructure.persistence.feedback_sqlite import FeedbackSqliteRepository
@@ -41,12 +42,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     token = (settings.telegram_feedback_bot_token or "").strip()
     bot = TelegramBotApi(token, client) if token else None
     workflow = FeedbackWorkflow(settings=settings, repo=repo, feedback_bot=bot)
+    snapshot_service = BondSnapshotService(settings)
+    await snapshot_service.start()
 
     app.state.http_client = client
     app.state.feedback_repo = repo
     app.state.feedback_bot = bot
     app.state.feedback_workflow = workflow
+    app.state.bond_snapshot_service = snapshot_service
     yield
+    await snapshot_service.stop()
     await client.aclose()
 
 
@@ -95,7 +100,16 @@ async def bonds(
         bucket="api_bonds",
         limit=settings.api_bonds_rate_limit_per_minute,
     )
+    snapshot_service: BondSnapshotService | None = getattr(
+        request.app.state,
+        "bond_snapshot_service",
+        None,
+    )
+    if snapshot_service is None:
+        raise HTTPException(status_code=503, detail="Bond snapshot service is not initialized.")
+
     parsed_min_annual_yield = _parse_decimal(min_annual_yield, "min_annual_yield")
+    source_bonds = await snapshot_service.get_bonds()
     return await get_top_bonds_async(
         horizon_days=horizon_days,
         limit=limit,
@@ -104,6 +118,7 @@ async def bonds(
         min_emitter_rating=min_emitter_rating,
         currency=currency,
         investor_profile=investor_profile,
+        source_bonds=source_bonds,
     )
 
 

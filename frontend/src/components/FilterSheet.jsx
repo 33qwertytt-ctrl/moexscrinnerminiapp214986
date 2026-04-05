@@ -1,46 +1,84 @@
 import { useEffect, useState } from "react";
 
 const HORIZON = ["7", "14", "30", "90"];
-const RATINGS = ["ruA", "ruA+", "ruAA-", "ruAA", "ruAA+", "ruAAA"];
+const RATINGS = ["NR", "ruA-", "ruA", "ruA+", "ruAA-", "ruAA", "ruAA+", "ruAAA"];
 const CURRENCIES = [
   { value: "RUB", label: "Рубли" },
   { value: "CNY", label: "Юани" },
 ];
 const INVESTOR_PROFILES = [
-  { value: "NONQUAL", label: "Не квал" },
-  { value: "QUAL", label: "Квал" },
+  { value: "NONQUAL", label: "Неквалифицированный" },
+  { value: "QUAL", label: "Квалифицированный" },
 ];
+
+function RatingGroup({ value, onChange }) {
+  return (
+    <div className="chip-row wrap">
+      {RATINGS.map((item) => (
+        <button
+          key={item}
+          type="button"
+          className={item === value ? "chip active" : "chip"}
+          onClick={() => onChange(item)}
+        >
+          {item}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function FilterSheet({
   open,
   onClose,
   horizon,
-  rating,
+  minBondRating,
+  minEmitterRating,
   currency,
   investorProfile,
   limit,
   yieldMin,
   yieldMax,
+  bondYieldMin,
+  bondYieldMax,
   onApply,
 }) {
   const [localHorizon, setLocalHorizon] = useState(horizon);
-  const [localRating, setLocalRating] = useState(rating);
+  const [localMinBondRating, setLocalMinBondRating] = useState(minBondRating);
+  const [localMinEmitterRating, setLocalMinEmitterRating] = useState(minEmitterRating);
   const [localCurrency, setLocalCurrency] = useState(currency);
   const [localInvestorProfile, setLocalInvestorProfile] = useState(investorProfile);
   const [localLimit, setLocalLimit] = useState(limit);
   const [localYieldMin, setLocalYieldMin] = useState(yieldMin);
   const [localYieldMax, setLocalYieldMax] = useState(yieldMax);
+  const [localBondYieldMin, setLocalBondYieldMin] = useState(bondYieldMin);
+  const [localBondYieldMax, setLocalBondYieldMax] = useState(bondYieldMax);
 
   useEffect(() => {
     if (!open) return;
     setLocalHorizon(horizon);
-    setLocalRating(rating);
+    setLocalMinBondRating(minBondRating);
+    setLocalMinEmitterRating(minEmitterRating);
     setLocalCurrency(currency);
     setLocalInvestorProfile(investorProfile);
     setLocalLimit(limit);
     setLocalYieldMin(yieldMin);
     setLocalYieldMax(yieldMax);
-  }, [open, horizon, rating, currency, investorProfile, limit, yieldMin, yieldMax]);
+    setLocalBondYieldMin(bondYieldMin);
+    setLocalBondYieldMax(bondYieldMax);
+  }, [
+    open,
+    horizon,
+    minBondRating,
+    minEmitterRating,
+    currency,
+    investorProfile,
+    limit,
+    yieldMin,
+    yieldMax,
+    bondYieldMin,
+    bondYieldMax,
+  ]);
 
   if (!open) return null;
 
@@ -69,21 +107,13 @@ export default function FilterSheet({
           ))}
         </div>
 
-        <label className="field-label">Мин. рейтинг с сервера</label>
-        <div className="chip-row wrap">
-          {RATINGS.map((value) => (
-            <button
-              key={value}
-              type="button"
-              className={value === localRating ? "chip active" : "chip"}
-              onClick={() => setLocalRating(value)}
-            >
-              {value}
-            </button>
-          ))}
-        </div>
+        <label className="field-label">Мин. рейтинг выпуска</label>
+        <RatingGroup value={localMinBondRating} onChange={setLocalMinBondRating} />
 
-        <label className="field-label">Лимит бумаг с сервера</label>
+        <label className="field-label">Мин. рейтинг эмитента</label>
+        <RatingGroup value={localMinEmitterRating} onChange={setLocalMinEmitterRating} />
+
+        <label className="field-label">Лимит бумаг</label>
         <select
           className="select-input"
           value={localLimit}
@@ -109,7 +139,7 @@ export default function FilterSheet({
         </div>
 
         <label className="field-label">Статус инвестора</label>
-        <div className="chip-row">
+        <div className="chip-row wrap">
           {INVESTOR_PROFILES.map((item) => (
             <button
               key={item.value}
@@ -122,7 +152,7 @@ export default function FilterSheet({
           ))}
         </div>
 
-        <label className="field-label">Годовая доходность, %</label>
+        <label className="field-label">Аннуализированная доходность (линейная), %</label>
         <div className="two-col">
           <input
             type="number"
@@ -140,6 +170,24 @@ export default function FilterSheet({
           />
         </div>
 
+        <label className="field-label">Годовая доходность облигации, %</label>
+        <div className="two-col">
+          <input
+            type="number"
+            className="text-input"
+            placeholder="от"
+            value={localBondYieldMin}
+            onChange={(event) => setLocalBondYieldMin(event.target.value)}
+          />
+          <input
+            type="number"
+            className="text-input"
+            placeholder="до"
+            value={localBondYieldMax}
+            onChange={(event) => setLocalBondYieldMax(event.target.value)}
+          />
+        </div>
+
         <div className="sheet-actions">
           <button type="button" className="btn-secondary" onClick={onClose}>
             Закрыть
@@ -150,12 +198,15 @@ export default function FilterSheet({
             onClick={() => {
               onApply({
                 horizon: localHorizon,
-                rating: localRating,
+                minBondRating: localMinBondRating,
+                minEmitterRating: localMinEmitterRating,
                 currency: localCurrency,
                 investorProfile: localInvestorProfile,
                 limit: localLimit,
                 yieldMin: localYieldMin,
                 yieldMax: localYieldMax,
+                bondYieldMin: localBondYieldMin,
+                bondYieldMax: localBondYieldMax,
               });
               onClose();
             }}

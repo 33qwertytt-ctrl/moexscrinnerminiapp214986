@@ -1,5 +1,5 @@
 const BASE_LABELS = {
-  annual_yield: "Годовая доходность",
+  annual_yield: "Аннуализированная доходность",
   price: "Цена",
   rating: "Рейтинг",
 };

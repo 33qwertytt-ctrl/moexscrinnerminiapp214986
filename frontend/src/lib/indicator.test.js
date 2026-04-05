@@ -5,6 +5,7 @@ import { compileIndicator, tokensToFormula } from "./indicator.js";
 
 const sampleBond = {
   annual_yield: 18,
+  bond_annual_yield: 16,
   yield_to_horizon: 7,
   price: 95,
   coupon_percent: 12,

@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from application.services.bond_service import BondService
 from application.services.yield_calculator import YieldCalculator
 from config.settings import settings
+from domain.entities.bond import Bond as DomainBond
 from infrastructure.moex.client import MoexClient
 
 RATING_ORDER = [
@@ -36,6 +37,7 @@ class Bond(BaseModel):
     is_qualified_only: bool
     rating: str
     price: float
+    bond_annual_yield: float
     coupon_percent: float
     coupons_per_year: int
     annual_yield: float
@@ -56,6 +58,10 @@ def _normalize_rating(raw_rating: str) -> str | None:
     ru_suffix_match = re.search(r"([ab]{1,3}[+-]?)\s*\(ru\)", lowered)
     if ru_suffix_match:
         return ru_suffix_match.group(1).upper()
+
+    ru_pipe_match = re.search(r"([ab]{1,3}[+-]?)\|ru\|", lowered)
+    if ru_pipe_match:
+        return ru_pipe_match.group(1).upper()
 
     ru_prefix_match = re.search(r"ru([ab]{1,3}[+-]?)", lowered)
     if ru_prefix_match:
@@ -106,16 +112,32 @@ async def get_top_bonds_async(
     min_emitter_rating: str | None = None,
     currency: str | None = None,
     investor_profile: str | None = None,
+    source_bonds: list[DomainBond] | None = None,
 ) -> list[Bond]:
     """Fetch top bonds while preserving existing calculation logic."""
+    requested_limit = limit or settings.limit
+    prefilter_limit = max(requested_limit * 8, 200)
     client = MoexClient()
     service = BondService(client=client, calculator=YieldCalculator())
-    ranked = await service.screen(
-        horizon_days=horizon_days,
-        min_rating="NR",
-        limit=limit or settings.limit,
-        min_annual_yield=min_annual_yield,
-    )
+    try:
+        if source_bonds is None:
+            ranked = await service.screen(
+                horizon_days=horizon_days,
+                min_rating="NR",
+                limit=prefilter_limit,
+                min_annual_yield=min_annual_yield,
+            )
+        else:
+            ranked = await service.screen_bonds(
+                source_bonds,
+                horizon_days=horizon_days,
+                min_rating="NR",
+                limit=min(prefilter_limit, len(source_bonds)),
+                min_annual_yield=min_annual_yield,
+                enrich_ratings=False,
+            )
+    finally:
+        await client.aclose()
 
     result: list[Bond] = []
     for item in ranked:
@@ -138,6 +160,7 @@ async def get_top_bonds_async(
                 is_qualified_only=item.bond.is_qualified_only,
                 rating=_format_rating_display(item.bond.rating),
                 price=float(YieldCalculator._market_price_amount(item.bond)),
+                bond_annual_yield=float(item.bond.bond_annual_yield),
                 coupon_percent=float(item.bond.coupon_percent),
                 coupons_per_year=item.bond.coupons_per_year,
                 annual_yield=float(item.metrics.annual_yield_percent),

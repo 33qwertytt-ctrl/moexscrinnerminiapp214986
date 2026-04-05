@@ -20,7 +20,6 @@ export default function FeedbackPanel({
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
-  const [pairCode, setPairCode] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -64,36 +63,6 @@ export default function FeedbackPanel({
     }
   }
 
-  async function submitPair() {
-    setStatus("");
-    if (!initData) {
-      setStatus("Нужен Telegram Mini App.");
-      return;
-    }
-    if (!pairCode.trim()) {
-      setStatus("Введите код от оператора (/pair).");
-      return;
-    }
-    setBusy(true);
-    try {
-      const formData = new FormData();
-      formData.append("init_data", initData);
-      formData.append("pairing_code", pairCode.trim());
-      const response = await fetch("/api/feedback/pair", { method: "POST", body: formData });
-      const rawText = await response.text();
-      if (!response.ok) {
-        setStatus(formatApiError(rawText, response.status));
-        return;
-      }
-      setStatus("Привязка выполнена.");
-      setPairCode("");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <>
       <button type="button" className="fab tap-scale" onClick={() => setOpen(true)} aria-label="Фидбек">
@@ -108,7 +77,7 @@ export default function FeedbackPanel({
             <textarea
               className="text-area"
               rows={4}
-              placeholder="Опишите проблему или идею…"
+              placeholder="Опишите проблему или идею..."
               value={text}
               maxLength={maxMessageChars || undefined}
               onChange={(event) => setText(event.target.value)}
@@ -130,25 +99,8 @@ export default function FeedbackPanel({
             </label>
             <p className="muted small">Максимум ~{maxMb} МБ.</p>
             <button type="button" className="btn-primary" disabled={busy} onClick={() => void submitFeedback()}>
-              {busy ? "Отправка…" : "Отправить"}
+              {busy ? "Отправка..." : "Отправить"}
             </button>
-
-            <hr className="divider" />
-
-            <h3 className="modal-subtitle">Привязка к оператору</h3>
-            <p className="muted small">Код выдаётся оператором командой /pair в боте фидбека.</p>
-            <div className="pair-row">
-              <input
-                type="text"
-                className="text-input"
-                placeholder="Код привязки"
-                value={pairCode}
-                onChange={(event) => setPairCode(event.target.value)}
-              />
-              <button type="button" className="btn-secondary" disabled={busy} onClick={() => void submitPair()}>
-                Привязать
-              </button>
-            </div>
 
             {status && <p className="status-msg">{status}</p>}
             <button type="button" className="btn-linky modal-close" onClick={() => setOpen(false)}>

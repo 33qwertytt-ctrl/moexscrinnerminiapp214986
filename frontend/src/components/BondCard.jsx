@@ -1,12 +1,15 @@
 import TooltipHelp from "./TooltipHelp.jsx";
 
 const YIELD_HELP =
-  "Годовая доходность здесь соответствует расчёту скринера: доходность до выбранного горизонта, " +
+  "Аннуализированная доходность здесь соответствует расчёту скринера: доходность до выбранного горизонта, " +
   "масштабированная на год для сравнения бумаг.";
 
 const HORIZON_HELP =
   "Доходность до горизонта — ожидаемая доходность за выбранный период " +
   "относительно текущей цены по правилам скринера.";
+
+const BOND_YIELD_HELP =
+  "Годовая доходность облигации берётся из данных MOEX и показывает биржевую доходность бумаги.";
 
 function openTinkoffDeep(ticker) {
   const deep = `tinkoff://invest/bond/${encodeURIComponent(ticker)}`;
@@ -43,6 +46,7 @@ function buildBondTitle(name, company) {
 
 export default function BondCard({ bond, indicatorName, indicatorValue }) {
   const annualYield = Number(bond.annual_yield);
+  const bondAnnualYield = Number(bond.bond_annual_yield);
   const annualYieldClass =
     annualYield > 20 ? "yield-accent-high" : annualYield < 10 ? "yield-accent-low" : "yield-accent-mid";
   const title = buildBondTitle(bond.name, bond.company);
@@ -59,7 +63,7 @@ export default function BondCard({ bond, indicatorName, indicatorValue }) {
 
       <div className="bond-yield-hero">
         <span className="bond-yield-label">
-          Годовая доходность, %
+          Аннуализированная доходность (линейная), %
           <TooltipHelp label="Справка по годовой" text={YIELD_HELP} />
         </span>
         <span className={`bond-yield-value ${annualYieldClass}`}>{annualYield.toFixed(2)}</span>
@@ -69,6 +73,13 @@ export default function BondCard({ bond, indicatorName, indicatorValue }) {
         <div>
           <span className="muted">Цена</span>
           <div className="bond-stat">{Number(bond.price).toFixed(2)}</div>
+        </div>
+        <div>
+          <span className="muted">
+            Годовая доходность облигации, %
+            <TooltipHelp label="Справка по доходности облигации" text={BOND_YIELD_HELP} />
+          </span>
+          <div className="bond-stat">{bondAnnualYield.toFixed(2)}</div>
         </div>
         <div>
           <span className="muted">

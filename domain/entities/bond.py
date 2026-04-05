@@ -16,6 +16,7 @@ class Bond:
     is_qualified_only: bool
     rating: str
     price: Decimal
+    bond_annual_yield: Decimal
     coupon_percent: Decimal
     coupon_value: Decimal
     coupons_per_year: int

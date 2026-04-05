@@ -29,8 +29,10 @@ class MoexClient:
         "Accept": "application/json",
     }
 
-    def __init__(self, timeout_seconds: float = 6.0) -> None:
+    def __init__(self, timeout_seconds: float = 6.0, max_attempts: int = 3) -> None:
         self.timeout_seconds = timeout_seconds
+        self.max_attempts = max_attempts
+        self._http_client: httpx.AsyncClient | None = None
         self.cci_access_denied = False
         self.cci_denied_streak = 0
         self.cci_denied_total = 0
@@ -47,6 +49,20 @@ class MoexClient:
             self.rating_debug[secid] = {}
         self.rating_debug[secid][stage] = payload or {}
 
+    async def _get_http_client(self) -> httpx.AsyncClient:
+        if self._http_client is None:
+            self._http_client = httpx.AsyncClient(
+                timeout=self.timeout_seconds,
+                headers=self.default_headers,
+            )
+        return self._http_client
+
+    async def aclose(self) -> None:
+        if self._http_client is None:
+            return
+        await self._http_client.aclose()
+        self._http_client = None
+
     async def _fetch_json_url(
         self,
         url: str,
@@ -54,66 +70,64 @@ class MoexClient:
         debug_secid: str | None = None,
         debug_stage: str | None = None,
     ) -> Any:
-        attempts = 3
+        attempts = self.max_attempts
         request_params = {"iss.meta": "off"}
         if params is not None:
             request_params.update(params)
 
         for attempt in range(1, attempts + 1):
             try:
-                async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                    response = await client.get(
-                        url, params=request_params, headers=self.default_headers
+                client = await self._get_http_client()
+                response = await client.get(url, params=request_params)
+                response.raise_for_status()
+                is_cci_url = "/iss/cci/" in url
+                snippet = response.text[:120] if response.text else ""
+                if debug_secid is not None and debug_stage is not None:
+                    self._store_rating_debug(
+                        debug_secid,
+                        debug_stage,
+                        {
+                            "url": str(response.url),
+                            "status": response.status_code,
+                            "marker": response.headers.get("X-MicexPassport-Marker"),
+                            "content_type": response.headers.get("content-type"),
+                            "content_len": len(response.text),
+                            "snippet": snippet,
+                            "attempt": attempt,
+                        },
                     )
-                    response.raise_for_status()
-                    is_cci_url = "/iss/cci/" in url
-                    snippet = response.text[:120] if response.text else ""
-                    if debug_secid is not None and debug_stage is not None:
-                        self._store_rating_debug(
-                            debug_secid,
-                            debug_stage,
-                            {
-                                "url": str(response.url),
-                                "status": response.status_code,
-                                "marker": response.headers.get("X-MicexPassport-Marker"),
-                                "content_type": response.headers.get("content-type"),
-                                "content_len": len(response.text),
-                                "snippet": snippet,
-                                "attempt": attempt,
-                            },
-                        )
-                    marker = response.headers.get("X-MicexPassport-Marker")
-                    if not response.content:
-                        if is_cci_url and marker == "denied":
-                            self.cci_denied_streak += 1
-                            self.cci_denied_total += 1
-                            if self.cci_denied_streak >= self.cci_denied_threshold:
-                                self.cci_access_denied = True
+                marker = response.headers.get("X-MicexPassport-Marker")
+                if not response.content:
+                    if is_cci_url and marker == "denied":
+                        self.cci_denied_streak += 1
+                        self.cci_denied_total += 1
+                        if self.cci_denied_streak >= self.cci_denied_threshold:
+                            self.cci_access_denied = True
+                    return {}
+
+                payload: Any
+                try:
+                    payload = response.json()
+                except ValueError:
+                    if is_cci_url and marker == "denied":
+                        self.cci_denied_streak += 1
+                        self.cci_denied_total += 1
+                        if self.cci_denied_streak >= self.cci_denied_threshold:
+                            self.cci_access_denied = True
+                    return {}
+
+                # Some CCI endpoints may return data together with `marker=denied`.
+                # Treat this as a successful response if JSON payload is present.
+                if is_cci_url:
+                    if marker == "denied" and payload in ({}, []):
+                        self.cci_denied_streak += 1
+                        self.cci_denied_total += 1
+                        if self.cci_denied_streak >= self.cci_denied_threshold:
+                            self.cci_access_denied = True
                         return {}
+                    self.cci_denied_streak = 0
 
-                    payload: Any
-                    try:
-                        payload = response.json()
-                    except ValueError:
-                        if is_cci_url and marker == "denied":
-                            self.cci_denied_streak += 1
-                            self.cci_denied_total += 1
-                            if self.cci_denied_streak >= self.cci_denied_threshold:
-                                self.cci_access_denied = True
-                        return {}
-
-                    # Some CCI endpoints may return data together with `marker=denied`.
-                    # Treat this as a successful response if JSON payload is present.
-                    if is_cci_url:
-                        if marker == "denied" and payload in ({}, []):
-                            self.cci_denied_streak += 1
-                            self.cci_denied_total += 1
-                            if self.cci_denied_streak >= self.cci_denied_threshold:
-                                self.cci_access_denied = True
-                            return {}
-                        self.cci_denied_streak = 0
-
-                    return payload
+                return payload
             except (httpx.HTTPError, ValueError):
                 if debug_secid is not None and debug_stage is not None:
                     self._store_rating_debug(

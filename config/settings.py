@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
     cache_ttl: int = Field(default=3600, ge=0)
     cache_dir: str = Field(default="./.cache")
+    bonds_snapshot_path: str = Field(default="./data/bonds_snapshot.json")
+    bonds_snapshot_timezone: str = Field(default="Europe/Moscow")
+    bonds_snapshot_refresh_hour: int = Field(default=0, ge=0, le=23)
+    bonds_snapshot_refresh_minute: int = Field(default=30, ge=0, le=59)
 
     public_domain: str = Field(default="moextab.duckdns.org")
     public_ipv4: str = Field(default="")

@@ -10,7 +10,7 @@ import { compileIndicator, tokensToFormula } from "./lib/indicator.js";
 import { fetchPublicConfig } from "./lib/publicConfig.js";
 import { ratingSortValue } from "./lib/ratings.js";
 
-function applyClientFilters(rows, { search, yieldMin, yieldMax }) {
+function applyClientFilters(rows, { search, yieldMin, yieldMax, bondYieldMin, bondYieldMax }) {
   const query = search.trim().toLowerCase();
   return rows.filter((row) => {
     const searchIndex = `${row.ticker} ${row.name} ${row.company || ""}`.toLowerCase();
@@ -22,6 +22,21 @@ function applyClientFilters(rows, { search, yieldMin, yieldMax }) {
       return false;
     }
     if (yieldMax !== "" && !Number.isNaN(Number(yieldMax)) && annualYield > Number(yieldMax)) {
+      return false;
+    }
+    const bondAnnualYield = Number(row.bond_annual_yield);
+    if (
+      bondYieldMin !== "" &&
+      !Number.isNaN(Number(bondYieldMin)) &&
+      bondAnnualYield < Number(bondYieldMin)
+    ) {
+      return false;
+    }
+    if (
+      bondYieldMax !== "" &&
+      !Number.isNaN(Number(bondYieldMax)) &&
+      bondAnnualYield > Number(bondYieldMax)
+    ) {
       return false;
     }
     return true;
@@ -71,13 +86,16 @@ function sortRows(rows, sortKey, sortPhase, baseIndex, getIndicator) {
 
 export default function App() {
   const [horizon, setHorizon] = useState("30");
-  const [rating, setRating] = useState("ruA");
+  const [minBondRating, setMinBondRating] = useState("ruA");
+  const [minEmitterRating, setMinEmitterRating] = useState("ruA");
   const [currency, setCurrency] = useState("RUB");
   const [investorProfile, setInvestorProfile] = useState("NONQUAL");
   const [limit, setLimit] = useState("100");
   const [search, setSearch] = useState("");
   const [yieldMin, setYieldMin] = useState("");
   const [yieldMax, setYieldMax] = useState("");
+  const [bondYieldMin, setBondYieldMin] = useState("");
+  const [bondYieldMax, setBondYieldMax] = useState("");
 
   const [rows, setRows] = useState([]);
   const [baseIndex, setBaseIndex] = useState({});
@@ -117,7 +135,8 @@ export default function App() {
     try {
       const data = await fetchBonds({
         horizon,
-        rating,
+        minBondRating,
+        minEmitterRating,
         currency,
         investorProfile,
         limit,
@@ -135,7 +154,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [horizon, rating, currency, investorProfile, limit]);
+  }, [horizon, minBondRating, minEmitterRating, currency, investorProfile, limit]);
 
   useEffect(() => {
     void load();
@@ -169,8 +188,8 @@ export default function App() {
   }, [indActive, indicatorCompiler]);
 
   const filtered = useMemo(
-    () => applyClientFilters(rows, { search, yieldMin, yieldMax }),
-    [rows, search, yieldMin, yieldMax],
+    () => applyClientFilters(rows, { search, yieldMin, yieldMax, bondYieldMin, bondYieldMax }),
+    [rows, search, yieldMin, yieldMax, bondYieldMin, bondYieldMax],
   );
 
   const displayed = useMemo(
@@ -345,20 +364,26 @@ export default function App() {
         open={filterOpen}
         onClose={() => setFilterOpen(false)}
         horizon={horizon}
-        rating={rating}
+        minBondRating={minBondRating}
+        minEmitterRating={minEmitterRating}
         currency={currency}
         investorProfile={investorProfile}
         limit={limit}
         yieldMin={yieldMin}
         yieldMax={yieldMax}
+        bondYieldMin={bondYieldMin}
+        bondYieldMax={bondYieldMax}
         onApply={(params) => {
           setHorizon(params.horizon);
-          setRating(params.rating);
+          setMinBondRating(params.minBondRating);
+          setMinEmitterRating(params.minEmitterRating);
           setCurrency(params.currency);
           setInvestorProfile(params.investorProfile);
           setLimit(params.limit);
           setYieldMin(params.yieldMin);
           setYieldMax(params.yieldMax);
+          setBondYieldMin(params.bondYieldMin);
+          setBondYieldMax(params.bondYieldMax);
         }}
       />
 

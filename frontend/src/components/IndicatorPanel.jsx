@@ -85,6 +85,14 @@ export default function IndicatorPanel({
           onChange={(event) => onNameChange(event.target.value)}
         />
 
+        <div className="indicator-preview">
+          <span className="muted">Формула</span>
+          <code className="indicator-formula">{formula || "—"}</code>
+          <span className="muted">
+            Пробный результат: {Number.isFinite(previewValue) ? previewValue.toFixed(4) : "не вычисляется"}
+          </span>
+        </div>
+
         <label className="field-label">Конструктор</label>
         <div className="indicator-canvas" aria-live="polite">
           {tokens.length === 0 && (
@@ -135,25 +143,12 @@ export default function IndicatorPanel({
           </div>
         </div>
 
-        <div className="indicator-preview">
-          <span className="muted">Формула</span>
-          <code className="indicator-formula">{formula || "—"}</code>
-          <span className="muted">
-            Пробный результат:{" "}
-            {Number.isFinite(previewValue) ? previewValue.toFixed(4) : "не вычисляется"}
-          </span>
-        </div>
-
         {error && <p className="error-inline">{error}</p>}
 
         <BlockGroup title="Метрики" items={INDICATOR_FIELD_BLOCKS} onAddToken={onAddToken} />
         <BlockGroup title="Операции" items={INDICATOR_OPERATOR_BLOCKS} onAddToken={onAddToken} />
         <BlockGroup title="Функции" items={INDICATOR_FUNCTION_BLOCKS} onAddToken={onAddToken} />
-        <BlockGroup
-          title="Производные"
-          items={INDICATOR_DERIVATIVE_BLOCKS}
-          onAddToken={onAddToken}
-        />
+        <BlockGroup title="Производные" items={INDICATOR_DERIVATIVE_BLOCKS} onAddToken={onAddToken} />
 
         <div className="sheet-actions">
           <button type="button" className="btn-secondary" onClick={onClose}>

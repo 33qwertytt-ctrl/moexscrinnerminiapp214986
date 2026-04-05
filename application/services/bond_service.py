@@ -45,6 +45,9 @@ def _normalize_rating_value(raw_rating: str) -> str | None:
     ru_match = re.search(r"\b([ab]{1,3}[+-]?)\s*\(ru\)\b", lowered)
     if ru_match:
         return f"ru{ru_match.group(1).upper()}"
+    pipe_ru_match = re.search(r"\b([ab]{1,3}[+-]?)\|ru\|", lowered)
+    if pipe_ru_match:
+        return f"ru{pipe_ru_match.group(1).upper()}"
     for rating in sorted(RATING_ORDER[1:], key=len, reverse=True):
         if rating.lower() in lowered:
             return rating
@@ -128,26 +131,29 @@ class BondService:
         ranked.sort(key=lambda item: item.metrics.annual_yield_percent, reverse=True)
         return ranked[:limit]
 
-    async def screen(
+    async def screen_bonds(
         self,
+        bonds: Iterable[Bond],
         horizon_days: int | None,
         min_rating: str,
         limit: int,
         min_annual_yield: Decimal | None = None,
+        *,
+        enrich_ratings: bool,
     ) -> list[RankedBond]:
-        """Fetch bonds and return filtered top list."""
-        bonds = await self.client.get_bonds()
+        """Filter and rank already-loaded bonds, optionally enriching ratings."""
         candidate_limit = max(limit * 4, 40)
         ranked = self._rank(bonds, horizon_days, "NR", candidate_limit, min_annual_yield)
         filtered: list[RankedBond] = []
         batch_size = 10
         for batch_start in range(0, len(ranked), batch_size):
             batch = ranked[batch_start : batch_start + batch_size]
-            await self._enrich_ratings(batch)
+            if enrich_ratings:
+                await self._enrich_ratings(batch)
             filtered.extend(
                 item for item in batch if self._passes_min_rating(item.bond, min_rating)
             )
-            if self.client.cci_access_denied:
+            if enrich_ratings and self.client.cci_access_denied:
                 for item in batch:
                     item.bond.rating = self._merge_ratings(item.bond.rating, "NR/NR")
                 tail = ranked[batch_start + batch_size :]
@@ -166,9 +172,26 @@ class BondService:
             filtered.sort(key=lambda item: item.metrics.annual_yield_percent, reverse=True)
             return filtered[:limit]
 
-        # Keep table populated when rating data is unavailable (e.g. CCI denied).
         seen_secids = {item.bond.secid for item in filtered}
         fallback = [item for item in ranked if item.bond.secid not in seen_secids]
         filtered.extend(fallback[: max(0, limit - len(filtered))])
         filtered.sort(key=lambda item: item.metrics.annual_yield_percent, reverse=True)
         return filtered[:limit]
+
+    async def screen(
+        self,
+        horizon_days: int | None,
+        min_rating: str,
+        limit: int,
+        min_annual_yield: Decimal | None = None,
+    ) -> list[RankedBond]:
+        """Fetch bonds and return filtered top list."""
+        bonds = await self.client.get_bonds()
+        return await self.screen_bonds(
+            bonds,
+            horizon_days=horizon_days,
+            min_rating=min_rating,
+            limit=limit,
+            min_annual_yield=min_annual_yield,
+            enrich_ratings=True,
+        )

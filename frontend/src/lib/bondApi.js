@@ -1,9 +1,20 @@
-export function buildBondsQuery({ horizon, rating, limit, currency, investorProfile }) {
+export function buildBondsQuery({
+  horizon,
+  minBondRating,
+  minEmitterRating,
+  limit,
+  currency,
+  investorProfile,
+}) {
   const p = new URLSearchParams();
   p.set("horizon_days", horizon);
   p.set("limit", limit);
-  p.set("min_bond_rating", rating);
-  p.set("min_emitter_rating", rating);
+  if (minBondRating) {
+    p.set("min_bond_rating", minBondRating);
+  }
+  if (minEmitterRating) {
+    p.set("min_emitter_rating", minEmitterRating);
+  }
   if (currency) {
     p.set("currency", currency);
   }

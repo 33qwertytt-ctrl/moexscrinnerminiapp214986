@@ -126,6 +126,7 @@ def parse_bonds(payload: dict[str, Any]) -> list[Bond]:
                     default=_value(sec, "PREVWAPRICE", "PREVPRICE", default="0"),
                 )
             ),
+            bond_annual_yield=_to_decimal(_value(sec, "YIELDATPREVWAPRICE", default="0")),
             coupon_percent=_to_decimal(_value(sec, "COUPONPERCENT", default="0")),
             coupon_value=_to_decimal(_value(sec, "COUPONVALUE", default="0")),
             coupons_per_year=_coupons_per_year(

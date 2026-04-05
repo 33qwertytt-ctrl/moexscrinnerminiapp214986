@@ -25,6 +25,17 @@ def feedback_inline_actions(feedback_id: int) -> dict[str, Any]:
     }
 
 
+def archived_feedback_inline_actions(feedback_id: int) -> dict[str, Any]:
+    """Actions for archive list entries."""
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Удалить", "callback_data": f"adl1:{feedback_id}"},
+            ],
+        ],
+    }
+
+
 def confirm_archive_keyboard(feedback_id: int) -> dict[str, Any]:
     """Second step for archive."""
     return {
@@ -44,6 +55,18 @@ def confirm_delete_keyboard(feedback_id: int) -> dict[str, Any]:
             [
                 {"text": "Подтвердить", "callback_data": f"dl2:{feedback_id}"},
                 {"text": "Отмена", "callback_data": f"dlx:{feedback_id}"},
+            ],
+        ],
+    }
+
+
+def confirm_archive_delete_keyboard(feedback_id: int) -> dict[str, Any]:
+    """Second step for deleting an archived item from archive view."""
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Подтвердить", "callback_data": f"adl2:{feedback_id}"},
+                {"text": "Отмена", "callback_data": f"adlx:{feedback_id}"},
             ],
         ],
     }

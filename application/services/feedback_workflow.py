@@ -16,9 +16,10 @@ from domain.entities.feedback import FeedbackRecord, FeedbackStatus
 from infrastructure.persistence.feedback_sqlite import FeedbackSqliteRepository
 from infrastructure.telegram.bot_api import TelegramBotApi, TelegramBotApiError
 from infrastructure.telegram.feedback_markups import (
+    archived_feedback_inline_actions,
     confirm_archive_keyboard,
+    confirm_archive_delete_keyboard,
     confirm_delete_keyboard,
-    empty_inline_keyboard,
     feedback_inline_actions,
     operator_reply_keyboard,
 )
@@ -237,6 +238,9 @@ class FeedbackWorkflow:
         self._validate_attachment(original_filename, content_type)
 
         linked_operator = await self._run_repo(self._repo.get_linked_operator, tg_user_id)
+        if False and linked_operator is None:
+            msg = "Сначала введите код привязки от оператора."
+            raise ValueError(msg)
 
         feedback_id = await self._run_repo(
             self._repo.insert_feedback,
@@ -517,7 +521,7 @@ class FeedbackWorkflow:
                     chat_id=chat_id,
                     message_id=message_id,
                     body=f"[Архив]\n{caption}",
-                    reply_markup=empty_inline_keyboard(),
+                    reply_markup=archived_feedback_inline_actions(feedback_id),
                 )
             elif prefix == "dl1":
                 await _edit_notification_message(
@@ -536,6 +540,24 @@ class FeedbackWorkflow:
                     message_id=message_id,
                     body=caption,
                     reply_markup=feedback_inline_actions(feedback_id),
+                )
+            elif prefix == "adl1":
+                await _edit_notification_message(
+                    bot,
+                    msg=msg,
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    body=f"[Архив]\n{caption}\n\nУдалить запись из архива безвозвратно?",
+                    reply_markup=confirm_archive_delete_keyboard(feedback_id),
+                )
+            elif prefix == "adlx":
+                await _edit_notification_message(
+                    bot,
+                    msg=msg,
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    body=f"[Архив]\n{caption}",
+                    reply_markup=archived_feedback_inline_actions(feedback_id),
                 )
             elif prefix == "dl2":
                 await self._run_repo(self._repo.set_status, feedback_id, FeedbackStatus.DELETED)
@@ -561,6 +583,22 @@ class FeedbackWorkflow:
                             "telegram_delete_skipped",
                             chat_id=chat_id,
                             message_id=message_id,
+                        )
+            elif prefix == "adl2":
+                await self._run_repo(self._repo.set_status, feedback_id, FeedbackStatus.DELETED)
+                await self._delete_attachment(record)
+                notify_rows = await self._run_repo(self._repo.list_notify_messages, feedback_id)
+                for notify_chat_id, notify_message_id in notify_rows:
+                    try:
+                        await bot.delete_message(
+                            chat_id=notify_chat_id,
+                            message_id=notify_message_id,
+                        )
+                    except TelegramBotApiError:
+                        logger.info(
+                            "telegram_delete_skipped",
+                            chat_id=notify_chat_id,
+                            message_id=notify_message_id,
                         )
             else:
                 await bot.answer_callback_query(

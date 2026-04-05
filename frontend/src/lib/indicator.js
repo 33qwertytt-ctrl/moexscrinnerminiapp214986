@@ -1,7 +1,8 @@
 import { ratingSortValue } from "./ratings.js";
 
 const FIELD_DEFINITIONS = [
-  { key: "annual_yield", label: "Годовая доходность" },
+  { key: "annual_yield", label: "Аннуализированная доходность" },
+  { key: "bond_annual_yield", label: "Годовая доходность облигации" },
   { key: "horizon_yield", label: "До горизонта" },
   { key: "price", label: "Цена" },
   { key: "coupon_percent", label: "Купон, %" },
@@ -22,6 +23,7 @@ const FUNCTION_DEFINITIONS = [
 
 const FIELD_GETTERS = {
   annual_yield: (bond) => Number(bond.annual_yield),
+  bond_annual_yield: (bond) => Number(bond.bond_annual_yield),
   horizon_yield: (bond) => Number(bond.yield_to_horizon),
   price: (bond) => Number(bond.price),
   coupon_percent: (bond) => Number(bond.coupon_percent),
