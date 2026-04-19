@@ -285,6 +285,12 @@ body {
   margin: 10px 0 6px;
 }
 
+.field-label-with-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .text-input,
 .text-area,
 .select-input {
@@ -535,6 +541,12 @@ body {
 .muted {
   color: var(--text-secondary);
   font-size: 11px;
+}
+
+.field-inline-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .bond-stat {
@@ -811,6 +823,10 @@ body {
   padding-top: 12px;
   border-top: 1px solid var(--divider);
   line-height: 1.5;
+}
+
+.app-footer-disclaimer {
+  margin: 10px 0 0;
 }
 
 .visually-hidden {

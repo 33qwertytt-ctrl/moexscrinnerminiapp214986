@@ -248,9 +248,6 @@ export default function App() {
 
       <div className="app-title-block">
         <h1 className="app-title">Облигации MOEX</h1>
-        <p className="disclaimer">
-          Данные носят справочный характер и не являются инвестиционной рекомендацией.
-        </p>
       </div>
 
       <div className="toolbar-inline">
@@ -260,7 +257,7 @@ export default function App() {
           onClick={() => void load()}
           disabled={loading}
         >
-          {loading ? "Загрузка…" : "Обновить"}
+          {loading ? "Загрузка..." : "Обновить"}
         </button>
         <button
           type="button"
@@ -357,6 +354,13 @@ export default function App() {
           {pub.public_domain && <span>Хост: {pub.public_domain}</span>}
           {pub.public_ipv4 && <span> · IPv4 {pub.public_ipv4}</span>}
           {pub.public_ipv6 && <span> · IPv6 {pub.public_ipv6}</span>}
+          <p className="disclaimer app-footer-disclaimer">
+            Данные носят справочный характер и не являются инвестиционной рекомендацией.
+          </p>
+          <p className="disclaimer app-footer-disclaimer">
+            Данные Московской биржи используются в информационных целях и не применяются в
+            коммерческих целях.
+          </p>
         </footer>
       )}
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import TooltipHelp from "./TooltipHelp.jsx";
 
-const HORIZON = ["7", "14", "30", "90"];
+const HORIZON = ["7", "14", "30", "60", "90", "120", "150", "180", "210", "240", "270", "300", "330", "360"];
 const RATINGS = ["NR", "ruA-", "ruA", "ruA+", "ruAA-", "ruAA", "ruAA+", "ruAAA"];
 const CURRENCIES = [
   { value: "RUB", label: "Рубли" },
@@ -10,6 +11,15 @@ const INVESTOR_PROFILES = [
   { value: "NONQUAL", label: "Неквалифицированный" },
   { value: "QUAL", label: "Квалифицированный" },
 ];
+
+function LabelWithHelp({ text, help }) {
+  return (
+    <label className="field-label field-label-with-help">
+      <span>{text}</span>
+      {help ? <TooltipHelp label={`Справка: ${text}`} text={help} /> : null}
+    </label>
+  );
+}
 
 function RatingGroup({ value, onChange }) {
   return (
@@ -93,7 +103,10 @@ export default function FilterSheet({
         <div className="sheet-handle" />
         <h2 className="sheet-title">Фильтры</h2>
 
-        <label className="field-label">Горизонт, дней</label>
+        <LabelWithHelp
+          text="Горизонт, дней"
+          help="Период, на который считаем доходность до горизонта и аннуализированную доходность для сравнения бумаг."
+        />
         <div className="chip-row">
           {HORIZON.map((value) => (
             <button
@@ -107,13 +120,22 @@ export default function FilterSheet({
           ))}
         </div>
 
-        <label className="field-label">Мин. рейтинг выпуска</label>
+        <LabelWithHelp
+          text="Мин. рейтинг выпуска"
+          help="Кредитное качество конкретного выпуска облигации. Чем выше рейтинг, тем ниже кредитный риск по шкале агентства."
+        />
         <RatingGroup value={localMinBondRating} onChange={setLocalMinBondRating} />
 
-        <label className="field-label">Мин. рейтинг эмитента</label>
+        <LabelWithHelp
+          text="Мин. рейтинг эмитента"
+          help="Качество самого эмитента как заемщика. Фильтр помогает отсечь бумаги компаний с более слабым кредитным профилем."
+        />
         <RatingGroup value={localMinEmitterRating} onChange={setLocalMinEmitterRating} />
 
-        <label className="field-label">Лимит бумаг</label>
+        <LabelWithHelp
+          text="Лимит бумаг"
+          help="Сколько облигаций максимум показывать в выдаче после серверной сортировки и фильтрации."
+        />
         <select
           className="select-input"
           value={localLimit}
@@ -124,7 +146,10 @@ export default function FilterSheet({
           <option value="100">100</option>
         </select>
 
-        <label className="field-label">Валюта</label>
+        <LabelWithHelp
+          text="Валюта"
+          help="Валюта номинала и основных денежных потоков по облигации."
+        />
         <div className="chip-row">
           {CURRENCIES.map((item) => (
             <button
@@ -138,7 +163,10 @@ export default function FilterSheet({
           ))}
         </div>
 
-        <label className="field-label">Статус инвестора</label>
+        <LabelWithHelp
+          text="Статус инвестора"
+          help="Позволяет скрыть бумаги, доступные только квалифицированным инвесторам."
+        />
         <div className="chip-row wrap">
           {INVESTOR_PROFILES.map((item) => (
             <button
@@ -152,7 +180,10 @@ export default function FilterSheet({
           ))}
         </div>
 
-        <label className="field-label">Аннуализированная доходность (линейная), %</label>
+        <LabelWithHelp
+          text="Аннуализированная доходность (линейная), %"
+          help="Доходность до выбранного горизонта, линейно приведенная к году. Удобна для быстрого сравнения бумаг между собой."
+        />
         <div className="two-col">
           <input
             type="number"
@@ -170,7 +201,10 @@ export default function FilterSheet({
           />
         </div>
 
-        <label className="field-label">Годовая доходность облигации, %</label>
+        <LabelWithHelp
+          text="Годовая доходность облигации, %"
+          help="Биржевая доходность бумаги из данных MOEX. Это отдельный показатель, не равный нашей аннуализации по выбранному горизонту."
+        />
         <div className="two-col">
           <input
             type="number"
